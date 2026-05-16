@@ -2,995 +2,1256 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Purple Ruler · Allocator</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Allocator</title>
 <style>
+/* ── Reset & Base ─────────────────────────────────────────── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
 :root {
-  --bg: #f2f2f7;
-  --sidebar: #e8e8ed;
-  --panel: #ffffff;
-  --border: rgba(60,60,67,0.12);
-  --border-med: rgba(60,60,67,0.18);
-  --t1: #1c1c1e;
-  --t2: #3c3c43;
-  --t3: #6c6c70;
-  --t4: #aeaeb2;
-  --accent: #007aff;
-  --green: #28cd41;
-  --green-dk: #1a9e33;
-  --orange: #ff9f0a;
-  --orange-dk: #b97300;
-  --red: #ff3b30;
-  --gray: #8e8e93;
-  --row-hover: #f2f2f7;
-  --sel: rgba(0,122,255,0.07);
-  font-family: -apple-system, "SF Pro Text", "Helvetica Neue", sans-serif;
-  font-size: 13px;
-  color: var(--t1);
-  -webkit-font-smoothing: antialiased;
+  --bg:           #f2f2f7;
+  --sidebar-bg:   #e8e8ed;
+  --panel-bg:     #ffffff;
+  --accent:       #007aff;
+  --green:        #28cd41;
+  --orange:       #ff9f0a;
+  --red:          #ff3b30;
+  --border:       rgba(60,60,67,0.12);
+  --text:         #1c1c1e;
+  --text2:        #3a3a3c;
+  --text3:        #636366;
+  --text4:        #8e8e93;
+  --font:         -apple-system, "SF Pro Text", "Helvetica Neue", sans-serif;
+  --radius:       8px;
+  --bar-h:        44px;
 }
-
+html, body { height: 100%; overflow: hidden; }
 body {
+  font-family: var(--font);
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--text);
   background: var(--bg);
-  height: 100vh;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
 }
 
-/* ── Top bar ──────────────────────────────────────────────────────────────── */
-.topbar {
-  background: rgba(255,255,255,0.82);
-  backdrop-filter: blur(24px) saturate(200%);
+/* ── Top bar ──────────────────────────────────────────────── */
+#topbar {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+  height: var(--bar-h);
+  background: rgba(242,242,247,0.72);
   -webkit-backdrop-filter: blur(24px) saturate(200%);
+  backdrop-filter: blur(24px) saturate(200%);
   border-bottom: 1px solid var(--border);
-  padding: 0 16px;
-  height: 44px;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex-shrink: 0;
-  z-index: 20;
+  display: flex; align-items: center; padding: 0 16px; gap: 10px;
 }
-
-.brand {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--t1);
-  letter-spacing: -0.2px;
-  flex-shrink: 0;
+#topbar .app-title {
+  font-size: 14px; font-weight: 600; color: var(--text);
+  letter-spacing: -0.2px; flex: 0 0 auto;
 }
-
-.brand-mark {
-  width: 20px;
-  height: 20px;
-  background: linear-gradient(135deg, #6c3ce1 0%, #4b6cf7 100%);
-  border-radius: 6px;
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.brand-mark svg { width: 12px; height: 12px; fill: none; stroke: #fff; stroke-width: 2; }
-
-.topbar-sep {
-  width: 1px;
-  height: 18px;
-  background: var(--border-med);
-  flex-shrink: 0;
-}
-
-.search-group {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex: 1;
-  max-width: 480px;
-}
-
-.search-field {
-  flex: 1;
-  height: 28px;
-  border: 1px solid var(--border-med);
-  border-radius: 7px;
-  background: var(--bg);
-  padding: 0 10px;
-  font: inherit;
-  font-size: 13px;
-  color: var(--t1);
-  outline: none;
-  transition: border-color 0.15s, background 0.15s, box-shadow 0.15s;
-  letter-spacing: -0.1px;
-}
-.search-field::placeholder { color: var(--t4); }
-.search-field:focus {
-  border-color: var(--accent);
-  background: #fff;
-  box-shadow: 0 0 0 3px rgba(0,122,255,0.12);
-}
-
-.topbar-info {
-  font-size: 12px;
-  color: var(--t3);
-  margin-left: 2px;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-/* ── Buttons ──────────────────────────────────────────────────────────────── */
-.btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 5px;
-  height: 28px;
-  padding: 0 14px;
-  border-radius: 7px;
-  border: none;
-  font: inherit;
-  font-size: 13px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: opacity 0.1s, filter 0.1s, background 0.1s;
-  white-space: nowrap;
-  letter-spacing: -0.1px;
-}
-.btn:active:not(:disabled) { opacity: 0.75; }
-.btn:disabled { opacity: 0.35; cursor: default; }
-
-.btn-sm { height: 22px; padding: 0 11px; font-size: 12px; border-radius: 5px; }
-
-.btn-primary { background: var(--accent); color: #fff; }
-.btn-primary:hover:not(:disabled) { filter: brightness(1.08); }
-
-.btn-secondary { background: rgba(60,60,67,0.1); color: var(--t1); }
-.btn-secondary:hover:not(:disabled) { background: rgba(60,60,67,0.16); }
-
-.btn-green { background: var(--green); color: #fff; }
-.btn-green:hover:not(:disabled) { filter: brightness(1.06); }
-
-.btn-danger { background: rgba(255,59,48,0.1); color: var(--red); }
-.btn-danger:hover:not(:disabled) { background: rgba(255,59,48,0.18); }
-
-/* ── Body layout ──────────────────────────────────────────────────────────── */
-.body {
-  display: flex;
-  flex: 1;
-  overflow: hidden;
-}
-
-/* ── Sidebar ──────────────────────────────────────────────────────────────── */
-.sidebar {
-  width: 224px;
-  flex-shrink: 0;
-  background: var(--sidebar);
-  border-right: 1px solid var(--border);
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-
-.sidebar-hdr {
-  padding: 8px 12px 6px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  border-bottom: 1px solid var(--border);
-  flex-shrink: 0;
-}
-.sidebar-hdr-label {
-  font-size: 10.5px;
-  font-weight: 600;
+#topbar .mock-badge {
+  font-size: 10px; font-weight: 600; letter-spacing: 0.6px;
   text-transform: uppercase;
-  letter-spacing: 0.6px;
-  color: var(--t3);
+  background: var(--orange); color: #fff;
+  padding: 1px 6px; border-radius: 20px;
+  display: none;
 }
-.sidebar-hdr-count {
-  font-size: 11px;
-  color: var(--t4);
-  font-variant-numeric: tabular-nums;
-}
+#topbar .mock-badge.visible { display: inline-block; }
 
-.sidebar-scroll { flex: 1; overflow-y: auto; padding: 4px 0; }
-
-.class-row {
+/* ── Layout ───────────────────────────────────────────────── */
+#layout {
   display: flex;
-  align-items: center;
-  gap: 9px;
+  height: 100vh;
+  padding-top: var(--bar-h);
+}
+#sidebar {
+  width: 200px; flex: 0 0 200px;
+  background: var(--sidebar-bg);
+  border-right: 1px solid var(--border);
+  display: flex; flex-direction: column;
+  overflow: hidden;
+}
+#main {
+  flex: 1; min-width: 0;
+  display: flex; flex-direction: column;
+  overflow: hidden;
+}
+
+/* ── Sidebar ──────────────────────────────────────────────── */
+#sidebar-list {
+  flex: 1; overflow-y: auto; padding: 8px 0;
+}
+.course-row {
+  display: flex; align-items: center; gap: 6px;
   padding: 7px 12px;
-  cursor: pointer;
-  position: relative;
-  transition: background 0.1s;
-  user-select: none;
-  -webkit-user-select: none;
+  cursor: pointer; user-select: none;
+  border-radius: 6px;
+  margin: 0 4px;
+  transition: background 0.12s;
 }
-.class-row:hover { background: rgba(60,60,67,0.06); }
-.class-row.active { background: var(--panel); }
-.class-row.active::before {
-  content: '';
-  position: absolute;
-  left: 0; top: 7px; bottom: 7px;
-  width: 3px;
+.course-row:hover { background: rgba(0,0,0,0.05); }
+.course-row.active { background: var(--accent); color: #fff; }
+.course-row .cid {
+  flex: 1; font-size: 12px; font-weight: 500;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.course-row .dots { display: flex; gap: 3px; flex: 0 0 auto; }
+.dot {
+  width: 7px; height: 7px; border-radius: 50%;
+  flex: 0 0 7px;
+}
+.dot-red    { background: var(--red); }
+.dot-orange { background: var(--orange); }
+#sidebar-footer {
+  flex: 0 0 auto;
+  padding: 10px 8px;
+  border-top: 1px solid var(--border);
+}
+#loadCoursesBtn {
+  width: 100%;
+  padding: 7px 12px;
+  border: none;
+  border-radius: var(--radius);
   background: var(--accent);
-  border-radius: 0 2px 2px 0;
-}
-
-.sdot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-.sdot-u { background: var(--gray); }
-.sdot-r { background: var(--orange); }
-.sdot-c { background: var(--green); }
-
-.class-row-body { flex: 1; min-width: 0; }
-.class-row-id {
-  font-size: 12.5px;
+  color: #fff;
+  font: 13px/1 var(--font);
   font-weight: 500;
-  color: var(--t1);
-  line-height: 1.3;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  letter-spacing: -0.1px;
+  cursor: pointer;
+  transition: opacity 0.15s;
 }
-.class-row-sub {
-  font-size: 11px;
-  color: var(--t3);
-  line-height: 1.3;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+#loadCoursesBtn:hover { opacity: 0.85; }
+#loadCoursesBtn:disabled { opacity: 0.5; cursor: wait; }
+
+/* ── Course Banner ────────────────────────────────────────── */
+#course-banner {
+  flex: 0 0 auto;
+  padding: 12px 16px;
+  background: var(--panel-bg);
+  border-bottom: 1px solid var(--border);
+  display: none;
+}
+#course-banner.visible { display: block; }
+#course-banner .banner-top {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+}
+#course-banner .course-name {
+  font-size: 15px; font-weight: 600; color: var(--text);
+}
+#course-banner .course-meta {
+  font-size: 12px; color: var(--text3); margin-top: 3px;
+}
+.badge {
+  display: inline-flex; align-items: center;
+  padding: 2px 7px;
+  border-radius: 20px;
+  font-size: 11px; font-weight: 600;
+  letter-spacing: 0.3px;
+}
+.badge-red    { background: rgba(255,59,48,0.12);  color: var(--red); }
+.badge-orange { background: rgba(255,159,10,0.12); color: var(--orange); }
+
+/* ── Split body ───────────────────────────────────────────── */
+#split-body {
+  flex: 1; display: flex; overflow: hidden;
 }
 
-.sidebar-empty {
-  padding: 28px 14px;
-  text-align: center;
+/* ── Class overview (left 45%) ────────────────────────────── */
+#overview-pane {
+  width: 45%; flex: 0 0 45%;
+  border-right: 1px solid var(--border);
+  display: flex; flex-direction: column;
+  overflow: hidden;
+}
+#overview-pane .pane-head {
+  flex: 0 0 auto;
+  padding: 8px 12px;
+  font-size: 11px; font-weight: 600; letter-spacing: 0.4px;
+  color: var(--text3); text-transform: uppercase;
+  border-bottom: 1px solid var(--border);
+  background: var(--panel-bg);
+}
+#overview-list {
+  flex: 1; overflow-y: auto;
+  background: var(--panel-bg);
+}
+.class-row {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer; user-select: none;
+  transition: background 0.1s;
+  position: relative;
+}
+.class-row:last-child { border-bottom: none; }
+.class-row:hover { background: rgba(0,122,255,0.04); }
+.class-row.selected { background: rgba(0,122,255,0.08); }
+.class-row .status-dot {
+  width: 7px; height: 7px; border-radius: 50%; flex: 0 0 7px;
+}
+.status-dot.unassigned { background: #c7c7cc; }
+.status-dot.reserved   { background: var(--orange); }
+.status-dot.confirmed  { background: var(--green); }
+.class-row .cls-info { flex: 1; min-width: 0; }
+.class-row .cls-name {
+  font-size: 12px; font-weight: 600; color: var(--text);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.class-row .cls-sched {
+  font-size: 11px; color: var(--text3);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.class-row .cls-assign {
+  font-size: 11px; color: var(--text2);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  margin-top: 1px;
+}
+.class-row .cls-assign em {
+  color: var(--text4); font-style: italic;
+}
+.class-row .conflict-icon {
+  flex: 0 0 auto; font-size: 12px; color: var(--orange);
+  visibility: hidden;
+}
+.class-row .conflict-icon.visible { visibility: visible; }
+
+/* ── Candidate panel (right 55%) ─────────────────────────── */
+#candidate-pane {
+  flex: 1; min-width: 0;
+  display: flex; flex-direction: column;
+  overflow: hidden;
+  background: var(--panel-bg);
+}
+#candidate-pane .pane-head {
+  flex: 0 0 auto;
+  padding: 8px 12px;
+  font-size: 11px; font-weight: 600; letter-spacing: 0.4px;
+  color: var(--text3); text-transform: uppercase;
+  border-bottom: 1px solid var(--border);
+  background: var(--panel-bg);
+}
+#candidate-body {
+  flex: 1; overflow-y: auto; padding: 12px;
+}
+.cand-placeholder {
+  display: flex; align-items: center; justify-content: center;
+  height: 120px;
+  color: var(--text4); font-size: 13px;
+}
+
+/* Class header inside candidate panel */
+.cand-class-header {
+  display: flex; align-items: center; gap: 8px;
+  margin-bottom: 10px; flex-wrap: wrap;
+}
+.cand-class-name {
+  font-size: 14px; font-weight: 600; color: var(--text);
+}
+.status-badge {
+  font-size: 11px; font-weight: 600; padding: 2px 8px;
+  border-radius: 20px;
+}
+.status-badge.unassigned { background: rgba(199,199,204,0.3); color: var(--text3); }
+.status-badge.reserved   { background: rgba(255,159,10,0.15); color: #c67700; }
+.status-badge.confirmed  { background: rgba(40,205,65,0.12);  color: #1a8f2d; }
+
+/* Action buttons */
+.action-row {
+  display: flex; gap: 8px; margin-bottom: 10px;
+}
+.action-btn {
+  padding: 5px 14px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font: 12px/1.4 var(--font); font-weight: 500;
+  cursor: pointer;
+  background: var(--panel-bg);
+  transition: background 0.12s, opacity 0.12s;
+}
+.action-btn:hover { background: rgba(0,0,0,0.04); }
+.action-btn:disabled { opacity: 0.45; cursor: wait; }
+.action-btn.confirm { border-color: var(--green); color: var(--green); }
+.action-btn.release { border-color: var(--red);   color: var(--red); }
+.action-btn.confirm:hover { background: rgba(40,205,65,0.08); }
+.action-btn.release:hover { background: rgba(255,59,48,0.06); }
+
+/* Assigned teacher banner */
+.assigned-banner {
+  display: flex; align-items: center; gap: 6px;
+  padding: 8px 12px;
+  background: rgba(0,122,255,0.06);
+  border: 1px solid rgba(0,122,255,0.14);
+  border-radius: 6px;
+  margin-bottom: 10px;
+  font-size: 13px;
+}
+.assigned-banner .at-label { color: var(--text3); font-weight: 500; }
+.assigned-banner .at-name  { color: var(--text);  font-weight: 600; }
+
+/* LA-SEND notice */
+.send-notice {
+  display: flex; align-items: center; gap: 6px;
+  padding: 7px 10px;
+  background: rgba(255,59,48,0.07);
+  border: 1px solid rgba(255,59,48,0.15);
+  border-radius: 6px;
+  margin-bottom: 10px;
+  font-size: 12px; color: var(--red); font-weight: 500;
+}
+
+/* Candidate table */
+.cand-table {
+  width: 100%; border-collapse: collapse;
   font-size: 12px;
-  color: var(--t4);
-  line-height: 1.6;
+}
+.cand-table th {
+  text-align: left;
+  padding: 5px 8px;
+  font-size: 10px; font-weight: 600; letter-spacing: 0.4px;
+  text-transform: uppercase; color: var(--text3);
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+.cand-table td {
+  padding: 7px 8px;
+  border-bottom: 1px solid rgba(60,60,67,0.07);
+  vertical-align: middle;
+}
+.cand-table tr:last-child td { border-bottom: none; }
+.cand-table tbody tr {
+  transition: background 0.1s;
+  position: relative;
+}
+.cand-table tbody tr:hover { background: rgba(0,122,255,0.04); }
+.cand-table tbody tr:hover .reserve-btn { opacity: 1; }
+
+/* Score bar */
+.score-cell { position: relative; }
+.score-bar {
+  position: absolute; left: 0; top: 0; bottom: 0;
+  background: rgba(0,122,255,0.07);
+  border-radius: 2px;
+  z-index: 0;
+}
+.score-val {
+  position: relative; z-index: 1;
+  font-weight: 500;
 }
 
-/* ── Main panel ───────────────────────────────────────────────────────────── */
-.main {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  background: var(--panel);
+/* Category pill */
+.cat-pill {
+  display: inline-block;
+  padding: 1px 6px;
+  border-radius: 20px;
+  font-size: 10px; font-weight: 700; letter-spacing: 0.4px;
+  text-transform: uppercase;
+}
+.cat-established { background: rgba(40,205,65,0.12);  color: #1a8f2d; }
+.cat-developing  { background: rgba(255,159,10,0.12); color: #c67700; }
+.cat-emerging    { background: rgba(255,59,48,0.1);   color: #b02218; }
+
+/* Reserve button */
+.reserve-btn {
+  opacity: 0;
+  padding: 3px 10px;
+  border: 1px solid var(--accent);
+  border-radius: 5px;
+  background: rgba(0,122,255,0.06);
+  color: var(--accent);
+  font: 11px/1.4 var(--font); font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.15s, background 0.12s;
+  white-space: nowrap;
+}
+.reserve-btn:hover { background: rgba(0,122,255,0.12); }
+.reserve-btn:disabled { opacity: 0.5 !important; cursor: wait; }
+
+/* Teacher conflict warning */
+.conflict-warn {
+  font-size: 11px; color: var(--orange); margin-top: 2px;
 }
 
-/* ── Empty / loading states ───────────────────────────────────────────────── */
-.state-view {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  padding: 48px 32px;
-}
-.state-icon {
-  font-size: 36px;
-  line-height: 1;
-  opacity: 0.2;
-  color: var(--t1);
-  margin-bottom: 4px;
-}
-.state-label { font-size: 15px; font-weight: 500; color: var(--t3); }
-.state-sub { font-size: 12.5px; color: var(--t4); text-align: center; line-height: 1.5; }
+/* DBS / Subj check */
+.check-ok  { color: var(--green);  font-weight: 600; }
+.check-no  { color: var(--red);    font-weight: 600; }
 
-@keyframes spin { to { transform: rotate(360deg); } }
+/* Spinner */
 .spinner {
+  display: inline-block;
   width: 18px; height: 18px;
-  border: 2px solid var(--border-med);
+  border: 2px solid var(--border);
   border-top-color: var(--accent);
   border-radius: 50%;
-  animation: spin 0.65s linear infinite;
-  margin-bottom: 4px;
-}
-
-/* ── Class header ─────────────────────────────────────────────────────────── */
-.class-hdr {
-  padding: 14px 20px 12px;
-  border-bottom: 1px solid var(--border);
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  flex-shrink: 0;
-}
-.class-hdr-info { flex: 1; min-width: 0; }
-.class-hdr-title {
-  font-size: 18px;
-  font-weight: 700;
-  color: var(--t1);
-  letter-spacing: -0.5px;
-  line-height: 1.15;
-}
-.class-hdr-meta {
-  font-size: 12px;
-  color: var(--t3);
-  margin-top: 4px;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex-wrap: wrap;
-}
-.meta-sep { color: var(--t4); }
-
-.class-hdr-actions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-shrink: 0;
-  padding-top: 2px;
-}
-
-.status-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 10.5px;
-  font-weight: 700;
-  padding: 2px 9px;
-  border-radius: 20px;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-.badge-u { background: rgba(142,142,147,0.13); color: var(--gray); }
-.badge-r { background: rgba(255,159,10,0.13); color: var(--orange-dk); }
-.badge-c { background: rgba(40,205,65,0.13); color: var(--green-dk); }
-
-/* ── Assigned teacher banner ──────────────────────────────────────────────── */
-.assigned-banner {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  background: rgba(40,205,65,0.07);
-  border-bottom: 1px solid rgba(40,205,65,0.15);
-  padding: 9px 20px;
-  flex-shrink: 0;
-  animation: fadeIn 0.2s ease;
-}
-.avatar {
-  width: 30px; height: 30px;
-  border-radius: 50%;
-  background: linear-gradient(135deg, #6c3ce1, #007aff);
-  display: flex; align-items: center; justify-content: center;
-  font-size: 11px; font-weight: 700; color: #fff;
-  flex-shrink: 0;
-}
-.assigned-name { font-size: 13px; font-weight: 600; color: var(--t1); }
-.assigned-role { font-size: 11px; color: var(--t3); }
-
-/* ── Candidate table ──────────────────────────────────────────────────────── */
-.table-wrap { flex: 1; overflow-y: auto; overflow-x: auto; }
-
-table.cand {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 12.5px;
-}
-
-table.cand thead {
-  position: sticky;
-  top: 0;
-  z-index: 5;
-}
-
-table.cand thead th {
-  background: rgba(255,255,255,0.92);
-  backdrop-filter: blur(8px);
-  border-bottom: 1px solid var(--border);
-  padding: 6px 10px;
-  text-align: left;
-  font-size: 10px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.6px;
-  color: var(--t3);
-  white-space: nowrap;
-}
-
-table.cand tbody tr {
-  border-bottom: 1px solid rgba(60,60,67,0.06);
-  transition: background 0.08s;
-}
-table.cand tbody tr:hover { background: var(--row-hover); }
-
-table.cand tbody td {
-  padding: 0 10px;
-  height: 30px;
+  animation: spin 0.7s linear infinite;
   vertical-align: middle;
-  color: var(--t1);
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.spinner-row {
+  display: flex; align-items: center; gap: 8px;
+  padding: 16px 0; color: var(--text3); font-size: 13px;
 }
 
-.col-rank { width: 30px; text-align: right; color: var(--t4); font-size: 11px; padding-right: 6px !important; }
-.col-name { min-width: 170px; max-width: 230px; font-weight: 500; letter-spacing: -0.1px; }
-.col-cat  { width: 78px; }
-.col-dbs  { width: 42px; text-align: center; }
-.col-subj { width: 46px; text-align: center; }
-.col-eff  { width: 90px; font-variant-numeric: tabular-nums; }
-.col-days { width: 78px; font-variant-numeric: tabular-nums; }
-.col-act  { width: 70px; text-align: right; padding-right: 14px !important; }
-
-.cat-pill {
-  display: inline-flex;
-  align-items: center;
-  font-size: 10px;
-  font-weight: 700;
-  padding: 2px 8px;
-  border-radius: 20px;
-  text-transform: uppercase;
-  letter-spacing: 0.4px;
-  white-space: nowrap;
-}
-.cat-est  { background: rgba(40,205,65,0.11); color: var(--green-dk); }
-.cat-dev  { background: rgba(255,159,10,0.11); color: var(--orange-dk); }
-.cat-emer { background: rgba(255,59,48,0.10); color: #c0392b; }
-.cat-unk  { background: rgba(142,142,147,0.11); color: var(--gray); }
-
-.chk { color: var(--green); font-size: 13px; }
-.x   { color: var(--t4); font-size: 12px; }
-
-.score-cell {
-  display: flex;
-  align-items: center;
-  gap: 0;
-  position: relative;
-  padding: 3px 0;
-}
-.score-bar-bg {
-  position: absolute;
-  left: 0; top: 0; bottom: 0;
-  background: rgba(0,122,255,0.07);
-  border-radius: 3px;
-  pointer-events: none;
-}
-.score-num { position: relative; z-index: 1; padding-left: 5px; }
-
-.row-btn {
-  opacity: 0;
-  transition: opacity 0.12s;
-}
-tr:hover .row-btn { opacity: 1; }
-
-/* ── Toast ────────────────────────────────────────────────────────────────── */
-@keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
-
-.toast-wrap {
-  position: fixed;
-  bottom: 18px;
-  right: 18px;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  z-index: 100;
+/* ── Toasts ───────────────────────────────────────────────── */
+#toast-container {
+  position: fixed; bottom: 20px; right: 20px;
+  z-index: 9999;
+  display: flex; flex-direction: column; gap: 8px;
+  align-items: flex-end;
   pointer-events: none;
 }
 .toast {
-  background: rgba(28,28,30,0.92);
-  backdrop-filter: blur(16px);
+  background: rgba(28,28,30,0.88);
+  -webkit-backdrop-filter: blur(16px) saturate(180%);
+  backdrop-filter: blur(16px) saturate(180%);
   color: #fff;
+  padding: 10px 16px;
   border-radius: 10px;
-  padding: 9px 16px;
-  font-size: 13px;
-  font-weight: 500;
-  letter-spacing: -0.1px;
-  line-height: 1.4;
+  font-size: 13px; font-weight: 500;
+  max-width: 320px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.25);
   opacity: 0;
   transform: translateY(8px);
-  transition: opacity 0.18s, transform 0.18s;
-  pointer-events: auto;
-  max-width: 300px;
+  transition: opacity 0.2s, transform 0.2s;
 }
-.toast.show { opacity: 1; transform: none; }
+.toast.show { opacity: 1; transform: translateY(0); }
 
-/* ── Scrollbar ────────────────────────────────────────────────────────────── */
-::-webkit-scrollbar { width: 6px; height: 6px; }
-::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: rgba(60,60,67,0.18); border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: rgba(60,60,67,0.32); }
+/* ── Empty states ─────────────────────────────────────────── */
+.empty-msg {
+  padding: 24px 12px;
+  color: var(--text4); font-size: 13px; text-align: center;
+}
 </style>
 </head>
 <body>
 
 <!-- Top bar -->
-<div class="topbar">
-  <div class="brand">
-    <div class="brand-mark">
-      <svg viewBox="0 0 12 12"><polyline points="2,10 6,2 10,10"/></svg>
-    </div>
-    Purple Ruler
-  </div>
-  <div class="topbar-sep"></div>
-  <span style="font-size:12px;color:var(--t3);font-weight:500">Allocator</span>
-  <div class="topbar-sep"></div>
-  <div class="search-group">
-    <input class="search-field" id="courseInput" type="text"
-           placeholder="Course ID — e.g. ABBA-ST1-Y11-16092025"
-           spellcheck="false" autocomplete="off" />
-    <button class="btn btn-primary" id="loadBtn">Load</button>
-  </div>
-  <div class="topbar-info" id="topbarInfo"></div>
+<div id="topbar">
+  <div class="app-title">Allocator</div>
+  <div class="mock-badge" id="mockBadge">Mock</div>
 </div>
 
-<!-- Body -->
-<div class="body">
-  <div class="sidebar">
-    <div class="sidebar-hdr">
-      <span class="sidebar-hdr-label">Classes</span>
-      <span class="sidebar-hdr-count" id="classCount">—</span>
+<!-- Main layout -->
+<div id="layout">
+  <!-- Sidebar -->
+  <div id="sidebar">
+    <div id="sidebar-list">
+      <div class="empty-msg" id="sidebar-empty">No courses loaded</div>
     </div>
-    <div class="sidebar-scroll" id="classList">
-      <div class="sidebar-empty">Load a course<br>to see classes</div>
+    <div id="sidebar-footer">
+      <button id="loadCoursesBtn">Load courses</button>
     </div>
   </div>
-  <div class="main" id="main"></div>
+
+  <!-- Main content -->
+  <div id="main">
+    <!-- Course banner -->
+    <div id="course-banner">
+      <div class="banner-top">
+        <span class="course-name" id="banner-name"></span>
+        <span class="badge badge-red"   id="banner-send" style="display:none">&#9889; LA-SEND</span>
+        <span class="badge badge-orange" id="banner-beh"  style="display:none">&#9888; Behaviour</span>
+      </div>
+      <div class="course-meta" id="banner-meta"></div>
+    </div>
+
+    <!-- Split body -->
+    <div id="split-body">
+      <!-- Class overview -->
+      <div id="overview-pane">
+        <div class="pane-head">Classes</div>
+        <div id="overview-list">
+          <div class="empty-msg" id="overview-empty">Select a course</div>
+        </div>
+      </div>
+
+      <!-- Candidate panel -->
+      <div id="candidate-pane">
+        <div class="pane-head">Candidates</div>
+        <div id="candidate-body">
+          <div class="cand-placeholder" id="cand-placeholder">Select a class to load candidates</div>
+        </div>
+      </div>
+    </div>
+  </div>
 </div>
 
-<!-- Toasts -->
-<div class="toast-wrap" id="toastWrap"></div>
+<!-- Toast container -->
+<div id="toast-container"></div>
 
 <script>
 (() => {
-  // ── Bridge detection ───────────────────────────────────────────────────────
-  // If running standalone (GitHub Pages, file://), use mock data.
-  // If loaded inside Wix iframe (window.parent !== window), use postMessage bridge.
-  const IS_MOCK = !window.parent || window.parent === window ||
-                  new URLSearchParams(location.search).has('mock');
+'use strict';
 
-  // ── postMessage bridge (Wix mode) ─────────────────────────────────────────
-  const BRIDGE_TIMEOUT = 30000;
-  let _reqId = 1;
-  const _pending = new Map();
+/* ═══════════════════════════════════════════════════════════
+   MOCK / BRIDGE detection
+   ═══════════════════════════════════════════════════════════ */
+const IS_MOCK = !window.parent || window.parent === window ||
+                new URLSearchParams(location.search).has('mock');
 
-  window.addEventListener('message', e => {
-    const m = e.data;
-    if (!m || m.type !== 'result' || !m.reqId) return;
-    const slot = _pending.get(m.reqId);
-    if (!slot) return;
-    clearTimeout(slot.timer);
-    _pending.delete(m.reqId);
-    m.ok ? slot.resolve(m.data) : slot.reject(new Error(m.error || 'Bridge error'));
+if (IS_MOCK) {
+  document.getElementById('mockBadge').classList.add('visible');
+}
+
+/* ═══════════════════════════════════════════════════════════
+   MOCK DATA
+   ═══════════════════════════════════════════════════════════ */
+const MOCK = {};
+
+MOCK.courses = [
+  { courseId: 'ABBA-ST1-Y11-16092025', school: 'Ark Bolingbroke', yearGroup: 'Year 11', termInfo: 'Term 4', sendFlag: true,  behaviourFlag: true  },
+  { courseId: 'VPS-AP1-Y8-10122025',   school: 'Virgo Park',      yearGroup: 'Year 8',  termInfo: 'Term 3', sendFlag: false, behaviourFlag: false },
+  { courseId: 'KSA-ST2-Y10-15012026',  school: 'King Solomon',    yearGroup: 'Year 10', termInfo: 'Term 4', sendFlag: false, behaviourFlag: true  },
+];
+
+MOCK.classes = {
+  'ABBA-ST1-Y11-16092025': [
+    { classId:'ABBA-ST1-Y11-ENGLISH-G1', subject:'English Language', weekday:'Wednesday', time:'08:15–08:45', instances:5, assignmentStatus:'Unassigned',  assignedTeacherName:'',                  assignedTeacherLarkId:'' },
+    { classId:'ABBA-ST1-Y11-ENGLISH-G2', subject:'English Language', weekday:'Wednesday', time:'09:00–09:30', instances:5, assignmentStatus:'Reserved',   assignedTeacherName:'Jessica M. Clarke',  assignedTeacherLarkId:'on_abc' },
+    { classId:'ABBA-ST1-Y11-MATHS-G1',   subject:'Mathematics',      weekday:'Thursday',  time:'14:00–14:30', instances:5, assignmentStatus:'Confirmed',  assignedTeacherName:'Priya Nair',         assignedTeacherLarkId:'on_def' },
+    { classId:'ABBA-ST1-Y11-SCIENCE-G1', subject:'Physics',          weekday:'Monday',    time:'11:00–11:30', instances:5, assignmentStatus:'Unassigned',  assignedTeacherName:'',                  assignedTeacherLarkId:'' },
+    { classId:'ABBA-ST1-Y11-HISTORY-G1', subject:'History',          weekday:'Tuesday',   time:'13:15–13:45', instances:4, assignmentStatus:'Unassigned',  assignedTeacherName:'',                  assignedTeacherLarkId:'' },
+  ],
+  'VPS-AP1-Y8-10122025': [
+    { classId:'VPS-AP1-Y8-MATHS-G1',   subject:'Mathematics', weekday:'Monday',    time:'09:00–09:30', instances:6, assignmentStatus:'Unassigned', assignedTeacherName:'', assignedTeacherLarkId:'' },
+    { classId:'VPS-AP1-Y8-ENGLISH-G1', subject:'English',     weekday:'Wednesday', time:'10:00–10:30', instances:6, assignmentStatus:'Unassigned', assignedTeacherName:'', assignedTeacherLarkId:'' },
+  ],
+  'KSA-ST2-Y10-15012026': [
+    { classId:'KSA-ST2-Y10-MATHS-G1', subject:'Mathematics', weekday:'Friday', time:'09:15–09:45', instances:5, assignmentStatus:'Unassigned', assignedTeacherName:'', assignedTeacherLarkId:'' },
+  ],
+};
+
+MOCK.candidates = {
+  'ABBA-ST1-Y11-ENGLISH-G1': [
+    { rank:1, name:'Taryn Sandra Bennett', larkId:'on_5bc44a32', category:'Established', dbsOk:true,  subjOk:true,  effRem:47, daysAt:4 },
+    { rank:2, name:'Michael O. Pryce',     larkId:'on_p02',      category:'Established', dbsOk:true,  subjOk:true,  effRem:41, daysAt:3 },
+    { rank:3, name:'Aisha Lowe-Okafor',    larkId:'on_p03',      category:'Developing',  dbsOk:true,  subjOk:true,  effRem:38, daysAt:4 },
+    { rank:4, name:'George Whitfield',     larkId:'on_p04',      category:'Developing',  dbsOk:true,  subjOk:false, effRem:35, daysAt:2 },
+    { rank:5, name:'Fiona A. Drummond',    larkId:'on_p05',      category:'Emerging',    dbsOk:true,  subjOk:true,  effRem:29, daysAt:3 },
+  ],
+  'ABBA-ST1-Y11-SCIENCE-G1': [
+    { rank:1, name:'Taryn Sandra Bennett', larkId:'on_5bc44a32', category:'Established', dbsOk:true, subjOk:true, effRem:47, daysAt:3 },
+    { rank:2, name:'Robert K. Singh',      larkId:'on_p06',      category:'Developing',  dbsOk:true, subjOk:true, effRem:33, daysAt:2 },
+  ],
+  _default: [
+    { rank:1, name:'Alex Turner',   larkId:'on_d01', category:'Established', dbsOk:true,  subjOk:true,  effRem:44, daysAt:3 },
+    { rank:2, name:'Maria Santos',  larkId:'on_d02', category:'Developing',  dbsOk:true,  subjOk:true,  effRem:37, daysAt:2 },
+    { rank:3, name:'James Okafor',  larkId:'on_d03', category:'Developing',  dbsOk:false, subjOk:true,  effRem:31, daysAt:4 },
+  ],
+};
+
+function mockDelay(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+/* ═══════════════════════════════════════════════════════════
+   BRIDGE
+   ═══════════════════════════════════════════════════════════ */
+const BRIDGE_TIMEOUT_MS = 30000;
+const _pending = new Map();
+let _nextReqId = 1;
+
+function bridgeCall(method, ...args) {
+  const reqId = `r${Date.now()}-${_nextReqId++}`;
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      _pending.delete(reqId);
+      reject(new Error(`Bridge timeout: ${method}`));
+    }, BRIDGE_TIMEOUT_MS);
+    _pending.set(reqId, { resolve, reject, timer });
+    window.parent.postMessage({ type: 'call', reqId, method, args }, '*');
+  });
+}
+
+window.addEventListener('message', (ev) => {
+  const msg = ev.data;
+  if (!msg || msg.type !== 'result' || !msg.reqId) return;
+  const slot = _pending.get(msg.reqId);
+  if (!slot) return;
+  clearTimeout(slot.timer);
+  _pending.delete(msg.reqId);
+  if (msg.ok) slot.resolve(msg.data);
+  else slot.reject(new Error(msg.error || 'Bridge error'));
+});
+
+/* ═══════════════════════════════════════════════════════════
+   API SHIMS
+   ═══════════════════════════════════════════════════════════ */
+async function api_listCourses(limit) {
+  if (IS_MOCK) {
+    await mockDelay(500);
+    return { ok: true, courses: MOCK.courses.slice(0, limit) };
+  }
+  return bridgeCall('listCourses', limit);
+}
+
+async function api_loadCourse(courseId) {
+  if (IS_MOCK) {
+    await mockDelay(700);
+    const all = MOCK.courses;
+    const course = all.find(c => c.courseId === courseId);
+    if (!course) return { ok: false, error: 'Course not found' };
+    return { ok: true, course, classes: MOCK.classes[courseId] || [] };
+  }
+  return bridgeCall('loadCourse', courseId);
+}
+
+async function api_computeCandidates(classId) {
+  if (IS_MOCK) {
+    await mockDelay(1100);
+    const cands = MOCK.candidates[classId] || MOCK.candidates._default;
+    return { ok: true, candidates: cands };
+  }
+  return bridgeCall('computeCandidates', classId);
+}
+
+async function api_reserve(classId, teacherLarkId, teacherName) {
+  if (IS_MOCK) {
+    await mockDelay(600);
+    return { ok: true };
+  }
+  return bridgeCall('reserve', { classId, teacherLarkId, teacherName });
+}
+
+async function api_confirm(classId) {
+  if (IS_MOCK) {
+    await mockDelay(500);
+    return { ok: true };
+  }
+  return bridgeCall('confirm', { classId });
+}
+
+async function api_release(classId) {
+  if (IS_MOCK) {
+    await mockDelay(500);
+    return { ok: true };
+  }
+  return bridgeCall('release', { classId });
+}
+
+/* ═══════════════════════════════════════════════════════════
+   STATE
+   ═══════════════════════════════════════════════════════════ */
+const state = {
+  courses: [],
+  activeCourseId: null,
+  activeCourse: null,
+  classes: [],
+  selectedClassId: null,
+  candidatesByClassId: new Map(),
+  loading: { courses: false, course: false, candidates: false, action: false }
+};
+
+/* ═══════════════════════════════════════════════════════════
+   CONFLICT DETECTION
+   ═══════════════════════════════════════════════════════════ */
+function computeConflicts() {
+  // Gather top-5 larkIds for every Unassigned class that has loaded candidates
+  const unassignedWithCands = state.classes.filter(cl =>
+    cl.assignmentStatus === 'Unassigned' &&
+    state.candidatesByClassId.has(cl.classId)
+  );
+
+  // teacher larkId → Set of classIds where they appear in top 5
+  const teacherToClasses = new Map();
+  for (const cl of unassignedWithCands) {
+    const cands = state.candidatesByClassId.get(cl.classId) || [];
+    cands.slice(0, 5).forEach(cd => {
+      if (!teacherToClasses.has(cd.larkId)) teacherToClasses.set(cd.larkId, new Set());
+      teacherToClasses.get(cd.larkId).add(cl.classId);
+    });
+  }
+
+  // conflicted teacher larkIds (appear in 2+ classes)
+  const conflictedTeachers = new Map(); // larkId → Set<classId>
+  teacherToClasses.forEach((classIds, larkId) => {
+    if (classIds.size >= 2) conflictedTeachers.set(larkId, classIds);
   });
 
-  function bridgeCall(method, ...args) {
-    const reqId = `r${Date.now()}-${_reqId++}`;
-    return new Promise((resolve, reject) => {
-      const timer = setTimeout(() => {
-        _pending.delete(reqId);
-        reject(new Error(`Timeout: ${method}`));
-      }, BRIDGE_TIMEOUT);
-      _pending.set(reqId, { resolve, reject, timer });
-      window.parent.postMessage({ type: 'call', reqId, method, args }, '*');
-    });
-  }
+  return conflictedTeachers; // Map<larkId, Set<classId>>
+}
 
-  // ── Mock data (GitHub Pages preview) ──────────────────────────────────────
-  const MOCK = {
-    course: {
-      id: 'ABBA-ST1-Y11-16092025',
-      name: 'Ark Bolingbroke — Year 11 — Term 4',
-      timezone: 'GMT',
-      classes: [
-        { classId:'ABBA-ST1-Y11-ENGLISH-G1', subject:'English Language', weekday:'Wednesday', time:'08:15–08:45', instances:5, status:'Unassigned',  assignedTeacher:null },
-        { classId:'ABBA-ST1-Y11-ENGLISH-G2', subject:'English Language', weekday:'Wednesday', time:'09:00–09:30', instances:5, status:'Reserved',    assignedTeacher:{ name:'Jessica M. Clarke',   larkId:'on_abc' } },
-        { classId:'ABBA-ST1-Y11-MATHS-G1',   subject:'Mathematics',      weekday:'Thursday',  time:'14:00–14:30', instances:5, status:'Confirmed',   assignedTeacher:{ name:'Priya Nair',           larkId:'on_def' } },
-        { classId:'ABBA-ST1-Y11-SCIENCE-G1', subject:'Physics',          weekday:'Monday',    time:'11:00–11:30', instances:5, status:'Unassigned',  assignedTeacher:null },
-        { classId:'ABBA-ST1-Y11-HISTORY-G1', subject:'History',          weekday:'Tuesday',   time:'13:15–13:45', instances:4, status:'Unassigned',  assignedTeacher:null },
-      ]
-    },
-    candidates: {
-      'ABBA-ST1-Y11-ENGLISH-G1': [
-        { rank:1, name:'Taryn Sandra Bennett',  larkId:'on_5bc44a3244119ceedac10a7c90cb030e', category:'Established', dbsOk:true,  subjOk:true,  effRem:47, daysAt:4 },
-        { rank:2, name:'Michael O. Pryce',      larkId:'on_p02', category:'Established', dbsOk:true,  subjOk:true,  effRem:41, daysAt:3 },
-        { rank:3, name:'Aisha Lowe-Okafor',     larkId:'on_p03', category:'Developing',  dbsOk:true,  subjOk:true,  effRem:38, daysAt:4 },
-        { rank:4, name:'George Whitfield',      larkId:'on_p04', category:'Developing',  dbsOk:true,  subjOk:false, effRem:35, daysAt:2 },
-        { rank:5, name:'Fiona A. Drummond',     larkId:'on_p05', category:'Emerging',    dbsOk:true,  subjOk:true,  effRem:29, daysAt:3 },
-      ],
-      default: [
-        { rank:1, name:'Sample Teacher A', larkId:'on_s1', category:'Established', dbsOk:true,  subjOk:true,  effRem:44, daysAt:4 },
-        { rank:2, name:'Sample Teacher B', larkId:'on_s2', category:'Developing',  dbsOk:true,  subjOk:true,  effRem:31, daysAt:3 },
-        { rank:3, name:'Sample Teacher C', larkId:'on_s3', category:'Emerging',    dbsOk:false, subjOk:true,  effRem:22, daysAt:2 },
-      ]
+/* ═══════════════════════════════════════════════════════════
+   HELPERS
+   ═══════════════════════════════════════════════════════════ */
+function shortClassId(classId) {
+  // Drop 3-segment prefix: "ABBA-ST1-Y11-ENGLISH-G1" → "ENGLISH-G1"
+  const parts = classId.split('-');
+  return parts.length > 3 ? parts.slice(3).join('-') : classId;
+}
+
+function catClass(category) {
+  if (!category) return '';
+  const k = category.toLowerCase();
+  if (k === 'established') return 'cat-established';
+  if (k === 'developing')  return 'cat-developing';
+  if (k === 'emerging')    return 'cat-emerging';
+  return '';
+}
+
+function effRem(cd) {
+  return cd.effRem ?? cd.effectiveRem ?? 0;
+}
+function daysAt(cd) {
+  return cd.daysAt ?? cd.daysAtTime ?? 0;
+}
+
+function statusClass(s) {
+  if (s === 'Reserved')  return 'reserved';
+  if (s === 'Confirmed') return 'confirmed';
+  return 'unassigned';
+}
+
+/* ═══════════════════════════════════════════════════════════
+   TOAST
+   ═══════════════════════════════════════════════════════════ */
+function toast(msg, duration = 3000) {
+  const el = document.createElement('div');
+  el.className = 'toast';
+  el.textContent = msg;
+  document.getElementById('toast-container').appendChild(el);
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => el.classList.add('show'));
+  });
+  setTimeout(() => {
+    el.classList.remove('show');
+    setTimeout(() => el.remove(), 250);
+  }, duration);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   RENDER — sidebar
+   ═══════════════════════════════════════════════════════════ */
+function renderSidebar() {
+  const list   = document.getElementById('sidebar-list');
+  const empty  = document.getElementById('sidebar-empty');
+  const btn    = document.getElementById('loadCoursesBtn');
+
+  btn.disabled = state.loading.courses;
+  btn.textContent = state.loading.courses ? 'Loading…' : 'Load courses';
+
+  if (state.courses.length === 0) {
+    empty.style.display = '';
+    // remove any old rows
+    list.querySelectorAll('.course-row').forEach(r => r.remove());
+    return;
+  }
+  empty.style.display = 'none';
+
+  // Rebuild
+  list.querySelectorAll('.course-row').forEach(r => r.remove());
+  for (const c of state.courses) {
+    const row = document.createElement('div');
+    row.className = 'course-row' + (c.courseId === state.activeCourseId ? ' active' : '');
+    row.dataset.courseId = c.courseId;
+
+    const cid = document.createElement('span');
+    cid.className = 'cid';
+    cid.textContent = c.courseId;
+
+    const dots = document.createElement('span');
+    dots.className = 'dots';
+    if (c.sendFlag) {
+      const d = document.createElement('span');
+      d.className = 'dot dot-red';
+      d.title = 'LA-SEND';
+      dots.appendChild(d);
     }
-  };
-
-  function mockDelay(ms) { return new Promise(r => setTimeout(r, ms)); }
-
-  // ── API shim ───────────────────────────────────────────────────────────────
-  async function api_loadCourse(courseId) {
-    if (IS_MOCK) {
-      await mockDelay(700);
-      if (courseId.toUpperCase().trim() !== MOCK.course.id) throw new Error('Course not found');
-      return MOCK.course;
-    }
-    return bridgeCall('loadCourse', courseId);
-  }
-
-  async function api_computeCandidates(classId) {
-    if (IS_MOCK) {
-      await mockDelay(1100);
-      const list = MOCK.candidates[classId] || MOCK.candidates.default;
-      return { classId, candidates: list };
-    }
-    return bridgeCall('computeCandidates', classId);
-  }
-
-  async function api_reserve(args) {
-    if (IS_MOCK) { await mockDelay(500); return { ok: true }; }
-    return bridgeCall('reserve', args);
-  }
-  async function api_confirm(args) {
-    if (IS_MOCK) { await mockDelay(450); return { ok: true }; }
-    return bridgeCall('confirm', args);
-  }
-  async function api_release(args) {
-    if (IS_MOCK) { await mockDelay(450); return { ok: true }; }
-    return bridgeCall('release', args);
-  }
-
-  // ── State ──────────────────────────────────────────────────────────────────
-  // Designed for future multi-tab: courses Map + activeTabId.
-  // For now only one course ever lives in the Map.
-  const state = {
-    courses: new Map(),      // courseId → { meta, classes[] }
-    activeTabId: null,       // courseId of currently viewed course
-    selectedClassId: null,
-    candidates: [],
-    loading: { course: false, candidates: false, action: false }
-  };
-
-  function activeCourse() { return state.courses.get(state.activeTabId) || null; }
-  function activeClasses() { return activeCourse()?.classes || []; }
-  function selectedClass() { return activeClasses().find(c => c.classId === state.selectedClassId) || null; }
-
-  // ── Toast ──────────────────────────────────────────────────────────────────
-  function toast(msg, ms = 3200) {
-    const el = document.createElement('div');
-    el.className = 'toast';
-    el.textContent = msg;
-    document.getElementById('toastWrap').appendChild(el);
-    requestAnimationFrame(() => { el.classList.add('show'); });
-    setTimeout(() => {
-      el.classList.remove('show');
-      setTimeout(() => el.remove(), 220);
-    }, ms);
-  }
-
-  // ── Helpers ────────────────────────────────────────────────────────────────
-  function statusKey(s) {
-    return s === 'Reserved' ? 'r' : s === 'Confirmed' ? 'c' : 'u';
-  }
-  function dotClass(s) { return `sdot sdot-${statusKey(s)}`; }
-  function badgeClass(s) { return `status-badge badge-${statusKey(s)}`; }
-
-  function catPillHtml(cat) {
-    const map = { Established:['est','Est'], Developing:['dev','Dev'], Emerging:['emer','Emer'] };
-    const [cls, label] = map[cat] || ['unk', cat];
-    return `<span class="cat-pill cat-${cls}">${label}</span>`;
-  }
-
-  function scoreBarHtml(val, max) {
-    const pct = max > 0 ? Math.min(100, Math.round(val / max * 100)) : 0;
-    return `<div class="score-cell" style="min-width:46px">
-      <div class="score-bar-bg" style="width:${pct}%"></div>
-      <span class="score-num">${val}</span>
-    </div>`;
-  }
-
-  function initials(name) {
-    return name.trim().split(/\s+/).map(w => w[0]).join('').slice(0,2).toUpperCase();
-  }
-
-  function shortClassId(classId) {
-    // "ABBA-ST1-Y11-ENGLISH-G1" → "ENGLISH-G1"
-    const parts = classId.split('-');
-    return parts.length > 3 ? parts.slice(3).join('-') : classId;
-  }
-
-  // ── Render sidebar ─────────────────────────────────────────────────────────
-  function renderSidebar() {
-    const classes = activeClasses();
-    const countEl = document.getElementById('classCount');
-    const listEl  = document.getElementById('classList');
-
-    if (!classes.length) {
-      countEl.textContent = '—';
-      listEl.innerHTML = '<div class="sidebar-empty">Load a course<br>to see classes</div>';
-      return;
-    }
-    countEl.textContent = classes.length;
-    listEl.innerHTML = classes.map(cls => {
-      const active = cls.classId === state.selectedClassId;
-      return `<div class="class-row${active ? ' active' : ''}" data-id="${cls.classId}">
-        <div class="${dotClass(cls.status)}"></div>
-        <div class="class-row-body">
-          <div class="class-row-id">${shortClassId(cls.classId)}</div>
-          <div class="class-row-sub">${cls.weekday} · ${cls.time}</div>
-        </div>
-      </div>`;
-    }).join('');
-
-    listEl.querySelectorAll('.class-row').forEach(el => {
-      el.addEventListener('click', () => handleSelectClass(el.dataset.id));
-    });
-  }
-
-  // ── Render main ────────────────────────────────────────────────────────────
-  function renderMain() {
-    const main = document.getElementById('main');
-
-    if (!activeCourse()) {
-      main.innerHTML = `<div class="state-view">
-        <div class="state-icon">◎</div>
-        <div class="state-label">No course loaded</div>
-        <div class="state-sub">Enter a Course ID above and press Load</div>
-      </div>`;
-      return;
+    if (c.behaviourFlag) {
+      const d = document.createElement('span');
+      d.className = 'dot dot-orange';
+      d.title = 'Behaviour flag';
+      dots.appendChild(d);
     }
 
-    if (!state.selectedClassId) {
-      main.innerHTML = `<div class="state-view">
-        <div class="state-icon" style="font-size:28px">←</div>
-        <div class="state-label">Select a class</div>
-        <div class="state-sub">Choose a class from the sidebar<br>to see candidates</div>
-      </div>`;
-      return;
-    }
+    row.appendChild(cid);
+    row.appendChild(dots);
+    row.addEventListener('click', () => onSelectCourse(c.courseId));
+    list.appendChild(row);
+  }
+}
 
-    const cls = selectedClass();
-    if (!cls) return;
+/* ═══════════════════════════════════════════════════════════
+   RENDER — course banner
+   ═══════════════════════════════════════════════════════════ */
+function renderBanner() {
+  const banner = document.getElementById('course-banner');
+  if (!state.activeCourse) {
+    banner.classList.remove('visible');
+    return;
+  }
+  banner.classList.add('visible');
+  const c = state.activeCourse;
+  document.getElementById('banner-name').textContent = c.courseId;
+  document.getElementById('banner-meta').textContent =
+    `${c.school} · ${c.yearGroup} · ${c.termInfo}`;
+  const sendBadge = document.getElementById('banner-send');
+  const behBadge  = document.getElementById('banner-beh');
+  sendBadge.style.display = c.sendFlag      ? '' : 'none';
+  behBadge.style.display  = c.behaviourFlag ? '' : 'none';
+}
 
-    const sk = statusKey(cls.status);
-    const shortId = shortClassId(cls.classId);
+/* ═══════════════════════════════════════════════════════════
+   RENDER — class overview
+   ═══════════════════════════════════════════════════════════ */
+function renderOverview() {
+  const listEl = document.getElementById('overview-list');
+  const emptyEl = document.getElementById('overview-empty');
 
-    // Action buttons in header
-    let headerBtns = '';
-    if (cls.status === 'Reserved') {
-      headerBtns = `<button class="btn btn-green btn-sm" id="confirmBtn">Confirm</button>
-                    <button class="btn btn-danger btn-sm" id="releaseBtn">Release</button>`;
-    } else if (cls.status === 'Confirmed') {
-      headerBtns = `<button class="btn btn-danger btn-sm" id="releaseBtn">Release</button>`;
-    }
+  listEl.querySelectorAll('.class-row').forEach(r => r.remove());
 
-    // Assigned teacher banner
-    let bannerHtml = '';
-    if (cls.assignedTeacher && (cls.status === 'Reserved' || cls.status === 'Confirmed')) {
-      const t = cls.assignedTeacher;
-      const verb = cls.status === 'Confirmed' ? 'Confirmed teacher' : 'Reserved for';
-      bannerHtml = `<div class="assigned-banner">
-        <div class="avatar">${initials(t.name)}</div>
-        <div>
-          <div class="assigned-name">${t.name}</div>
-          <div class="assigned-role">${verb}</div>
-        </div>
-      </div>`;
-    }
+  if (state.classes.length === 0) {
+    emptyEl.style.display = '';
+    return;
+  }
+  emptyEl.style.display = 'none';
 
-    // Candidates area
-    let candidatesHtml = '';
-    if (state.loading.candidates) {
-      candidatesHtml = `<div class="state-view">
-        <div class="spinner"></div>
-        <div class="state-sub">Computing candidates…</div>
-      </div>`;
-    } else if (!state.candidates.length) {
-      candidatesHtml = `<div class="state-view">
-        <div class="state-icon">∅</div>
-        <div class="state-label">No candidates</div>
-        <div class="state-sub">No teachers passed the hard filters<br>for this class</div>
-      </div>`;
+  const conflicts = computeConflicts(); // Map<larkId, Set<classId>>
+  // Which classIds are conflicted?
+  const conflictedClassIds = new Set();
+  conflicts.forEach((classIds) => classIds.forEach(cid => conflictedClassIds.add(cid)));
+
+  for (const cl of state.classes) {
+    const row = document.createElement('div');
+    row.className = 'class-row' + (cl.classId === state.selectedClassId ? ' selected' : '');
+    row.dataset.classId = cl.classId;
+
+    // status dot
+    const dot = document.createElement('span');
+    dot.className = 'status-dot ' + statusClass(cl.assignmentStatus);
+    row.appendChild(dot);
+
+    // info block
+    const info = document.createElement('div');
+    info.className = 'cls-info';
+
+    const nameEl = document.createElement('div');
+    nameEl.className = 'cls-name';
+    nameEl.textContent = shortClassId(cl.classId);
+    info.appendChild(nameEl);
+
+    const schedEl = document.createElement('div');
+    schedEl.className = 'cls-sched';
+    schedEl.textContent = `${cl.weekday} ${cl.time} · ${cl.instances}×`;
+    info.appendChild(schedEl);
+
+    const assignEl = document.createElement('div');
+    assignEl.className = 'cls-assign';
+    if (cl.assignmentStatus === 'Reserved' || cl.assignmentStatus === 'Confirmed') {
+      assignEl.textContent = cl.assignedTeacherName || '—';
+    } else if (state.candidatesByClassId.has(cl.classId)) {
+      const cands = state.candidatesByClassId.get(cl.classId);
+      if (cands.length > 0) {
+        const preview = cands.slice(0, 2).map(cd => cd.name.split(' ')[0]).join(', ');
+        const em = document.createElement('em');
+        em.textContent = preview + (cands.length > 2 ? '…' : '');
+        assignEl.appendChild(em);
+      } else {
+        const em = document.createElement('em');
+        em.textContent = 'No candidates';
+        assignEl.appendChild(em);
+      }
     } else {
-      const maxEff  = Math.max(...state.candidates.map(c => c.effRem  || c.effectiveRem  || 0), 1);
-      const maxDays = Math.max(...state.candidates.map(c => c.daysAt  || c.daysAtTime    || 0), 1);
+      const em = document.createElement('em');
+      em.textContent = 'click to load';
+      assignEl.appendChild(em);
+    }
+    info.appendChild(assignEl);
 
-      const rows = state.candidates.map(c => {
-        const effVal  = c.effRem  ?? c.effectiveRem  ?? 0;
-        const daysVal = c.daysAt  ?? c.daysAtTime    ?? 0;
-        const reserveBtn = cls.status === 'Unassigned'
-          ? `<button class="btn btn-primary btn-sm row-btn"
-               data-lid="${c.larkId}" data-name="${c.name}">Reserve</button>`
-          : '';
-        return `<tr>
-          <td class="col-rank">${c.rank}</td>
-          <td class="col-name">${c.name}</td>
-          <td class="col-cat">${catPillHtml(c.category)}</td>
-          <td class="col-dbs">${c.dbsOk ? '<span class="chk">✓</span>' : '<span class="x">—</span>'}</td>
-          <td class="col-subj">${(c.subjOk ?? c.subjectOk) ? '<span class="chk">✓</span>' : '<span class="x">—</span>'}</td>
-          <td class="col-eff">${scoreBarHtml(effVal, maxEff)}</td>
-          <td class="col-days">${scoreBarHtml(daysVal, maxDays)}</td>
-          <td class="col-act">${reserveBtn}</td>
-        </tr>`;
-      }).join('');
+    row.appendChild(info);
 
-      candidatesHtml = `<div class="table-wrap">
-        <table class="cand">
-          <thead>
-            <tr>
-              <th class="col-rank">#</th>
-              <th class="col-name">Teacher</th>
-              <th class="col-cat">Category</th>
-              <th class="col-dbs">DBS</th>
-              <th class="col-subj">Subj.</th>
-              <th class="col-eff">Eff. Slots</th>
-              <th class="col-days">Days @ Time</th>
-              <th class="col-act"></th>
-            </tr>
-          </thead>
-          <tbody id="candBody">${rows}</tbody>
-        </table>
-      </div>`;
+    // conflict icon
+    const icon = document.createElement('span');
+    icon.className = 'conflict-icon' + (conflictedClassIds.has(cl.classId) ? ' visible' : '');
+    icon.title = 'Teacher conflict detected';
+    icon.textContent = '⚠';
+    row.appendChild(icon);
+
+    row.addEventListener('click', () => onSelectClass(cl.classId));
+    listEl.appendChild(row);
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   RENDER — candidate panel
+   ═══════════════════════════════════════════════════════════ */
+function renderCandidates() {
+  const body = document.getElementById('candidate-body');
+  const placeholder = document.getElementById('cand-placeholder');
+
+  // clear body (preserve placeholder)
+  Array.from(body.children).forEach(el => {
+    if (el !== placeholder) el.remove();
+  });
+
+  if (!state.selectedClassId) {
+    placeholder.style.display = '';
+    return;
+  }
+  placeholder.style.display = 'none';
+
+  const cl = state.classes.find(c => c.classId === state.selectedClassId);
+  if (!cl) return;
+
+  const conflicts = computeConflicts();
+
+  // --- Class header ---
+  const header = document.createElement('div');
+  header.className = 'cand-class-header';
+
+  const cname = document.createElement('span');
+  cname.className = 'cand-class-name';
+  cname.textContent = shortClassId(cl.classId);
+  header.appendChild(cname);
+
+  const statusBadge = document.createElement('span');
+  statusBadge.className = 'status-badge ' + statusClass(cl.assignmentStatus);
+  statusBadge.textContent = cl.assignmentStatus;
+  header.appendChild(statusBadge);
+
+  body.appendChild(header);
+
+  // --- Action row (Confirm / Release) if Reserved or Confirmed ---
+  if (cl.assignmentStatus === 'Reserved' || cl.assignmentStatus === 'Confirmed') {
+    const actionRow = document.createElement('div');
+    actionRow.className = 'action-row';
+
+    if (cl.assignmentStatus === 'Reserved') {
+      const confirmBtn = document.createElement('button');
+      confirmBtn.className = 'action-btn confirm';
+      confirmBtn.textContent = 'Confirm';
+      confirmBtn.disabled = state.loading.action;
+      confirmBtn.addEventListener('click', () => onConfirm(cl.classId));
+      actionRow.appendChild(confirmBtn);
     }
 
-    main.innerHTML = `<div class="class-hdr">
-        <div class="class-hdr-info">
-          <div class="class-hdr-title">${shortId}</div>
-          <div class="class-hdr-meta">
-            <span>${cls.subject}</span>
-            <span class="meta-sep">·</span>
-            <span>${cls.weekday}, ${cls.time}</span>
-            <span class="meta-sep">·</span>
-            <span>${cls.instances} sessions</span>
-            <span class="meta-sep">·</span>
-            <span>${activeCourse()?.timezone || 'UTC'}</span>
-          </div>
-        </div>
-        <div class="class-hdr-actions" id="hdrActions">
-          <span class="${badgeClass(cls.status)}">${cls.status}</span>
-          ${headerBtns}
-        </div>
-      </div>
-      ${bannerHtml}
-      ${candidatesHtml}`;
+    const releaseBtn = document.createElement('button');
+    releaseBtn.className = 'action-btn release';
+    releaseBtn.textContent = 'Release';
+    releaseBtn.disabled = state.loading.action;
+    releaseBtn.addEventListener('click', () => onRelease(cl.classId));
+    actionRow.appendChild(releaseBtn);
 
-    wireMainEvents(cls);
+    body.appendChild(actionRow);
   }
 
-  function wireMainEvents(cls) {
-    document.getElementById('main').querySelectorAll('.row-btn').forEach(btn => {
-      btn.addEventListener('click', () =>
-        doReserve(cls.classId, btn.dataset.lid, btn.dataset.name));
-    });
-    const confirmBtn = document.getElementById('confirmBtn');
-    if (confirmBtn) confirmBtn.addEventListener('click', () => doConfirm(cls.classId));
-    const releaseBtn = document.getElementById('releaseBtn');
-    if (releaseBtn) releaseBtn.addEventListener('click', () => doRelease(cls.classId));
+  // --- Assigned teacher banner ---
+  if (cl.assignmentStatus !== 'Unassigned' && cl.assignedTeacherName) {
+    const banner = document.createElement('div');
+    banner.className = 'assigned-banner';
+    const lbl = document.createElement('span');
+    lbl.className = 'at-label';
+    lbl.textContent = cl.assignmentStatus === 'Confirmed' ? 'Confirmed:' : 'Reserved:';
+    const nm = document.createElement('span');
+    nm.className = 'at-name';
+    nm.textContent = cl.assignedTeacherName;
+    banner.appendChild(lbl);
+    banner.appendChild(nm);
+    body.appendChild(banner);
   }
 
-  // ── Actions ────────────────────────────────────────────────────────────────
-  async function doReserve(classId, larkId, teacherName) {
-    if (state.loading.action) return;
-    state.loading.action = true;
-    try {
-      await api_reserve({ classId, teacherLarkId: larkId, teacherName });
-      const cls = activeClasses().find(c => c.classId === classId);
-      if (cls) { cls.status = 'Reserved'; cls.assignedTeacher = { name: teacherName, larkId }; }
-      toast(`Reserved — ${teacherName}`);
-      renderSidebar();
-      renderMain();
-    } catch(e) {
-      toast(`Reserve failed: ${e.message}`);
-    } finally { state.loading.action = false; }
+  // --- LA-SEND notice ---
+  if (state.activeCourse && state.activeCourse.sendFlag) {
+    const notice = document.createElement('div');
+    notice.className = 'send-notice';
+    notice.innerHTML = '<strong>⚡ LA-SEND</strong>&nbsp;This course requires a SEND-qualified teacher.';
+    body.appendChild(notice);
   }
 
-  async function doConfirm(classId) {
-    if (state.loading.action) return;
-    state.loading.action = true;
-    try {
-      await api_confirm({ classId });
-      const cls = activeClasses().find(c => c.classId === classId);
-      if (cls) { cls.status = 'Confirmed'; }
-      toast(`Confirmed — ${cls?.assignedTeacher?.name || ''}`);
-      renderSidebar();
-      renderMain();
-    } catch(e) {
-      toast(`Confirm failed: ${e.message}`);
-    } finally { state.loading.action = false; }
+  // --- Loading spinner ---
+  if (state.loading.candidates && !state.candidatesByClassId.has(cl.classId)) {
+    const row = document.createElement('div');
+    row.className = 'spinner-row';
+    const sp = document.createElement('span');
+    sp.className = 'spinner';
+    row.appendChild(sp);
+    row.appendChild(document.createTextNode('Loading candidates…'));
+    body.appendChild(row);
+    return;
   }
 
-  async function doRelease(classId) {
-    if (state.loading.action) return;
-    state.loading.action = true;
-    try {
-      await api_release({ classId });
-      const cls = activeClasses().find(c => c.classId === classId);
-      const prev = cls?.assignedTeacher?.name;
-      if (cls) { cls.status = 'Unassigned'; cls.assignedTeacher = null; }
-      state.candidates = [];
-      toast(`Released${prev ? ` — ${prev} removed` : ''}`);
-      renderSidebar();
-      renderMain();
-    } catch(e) {
-      toast(`Release failed: ${e.message}`);
-    } finally { state.loading.action = false; }
+  // --- Candidates table ---
+  const cands = state.candidatesByClassId.get(cl.classId);
+  if (!cands) {
+    const msg = document.createElement('div');
+    msg.className = 'cand-placeholder';
+    msg.textContent = 'Candidates not loaded yet';
+    body.appendChild(msg);
+    return;
+  }
+  if (cands.length === 0) {
+    const msg = document.createElement('div');
+    msg.className = 'cand-placeholder';
+    msg.textContent = 'No candidates found';
+    body.appendChild(msg);
+    return;
   }
 
-  // ── Load course ────────────────────────────────────────────────────────────
-  async function handleLoadCourse() {
-    const raw = document.getElementById('courseInput').value.trim();
-    if (!raw) { toast('Enter a course ID first'); return; }
-    if (state.loading.course) return;
-
-    state.loading.course = true;
-    document.getElementById('loadBtn').disabled = true;
-    document.getElementById('topbarInfo').innerHTML =
-      '<div class="spinner" style="display:inline-block"></div>';
-
-    try {
-      const data = await api_loadCourse(raw);
-      // Deep-copy classes so status mutations don't affect cached meta
-      const entry = {
-        meta: { id: data.id, name: data.name, timezone: data.timezone },
-        classes: JSON.parse(JSON.stringify(data.classes || []))
-      };
-      state.courses.set(data.id, entry);
-      state.activeTabId = data.id;
-      state.selectedClassId = null;
-      state.candidates = [];
-      document.getElementById('topbarInfo').textContent =
-        `${entry.classes.length} classes · ${data.id}`;
-      renderSidebar();
-      renderMain();
-    } catch(e) {
-      document.getElementById('topbarInfo').textContent = '';
-      toast(`Load failed: ${e.message}`);
-    } finally {
-      state.loading.course = false;
-      document.getElementById('loadBtn').disabled = false;
+  // Build conflict info for inline warnings
+  // For each teacher in this class's candidates, which OTHER classes are they conflicted with?
+  const conflictInfo = new Map(); // larkId → array of other classId short names
+  conflicts.forEach((classIds, larkId) => {
+    const others = Array.from(classIds).filter(cid => cid !== cl.classId);
+    if (others.length > 0 && classIds.has(cl.classId)) {
+      conflictInfo.set(larkId, others.map(shortClassId));
     }
+  });
+
+  // Max effRem for score bar scaling
+  const maxEff = Math.max(...cands.map(effRem), 1);
+
+  const tbl = document.createElement('table');
+  tbl.className = 'cand-table';
+
+  // Header
+  const thead = document.createElement('thead');
+  thead.innerHTML = `<tr>
+    <th>#</th>
+    <th>Teacher</th>
+    <th>Cat</th>
+    <th>DBS</th>
+    <th>Subj</th>
+    <th>Eff Slots</th>
+    <th>Days@Time</th>
+    <th></th>
+  </tr>`;
+  tbl.appendChild(thead);
+
+  const tbody = document.createElement('tbody');
+  cands.forEach(cd => {
+    const tr = document.createElement('tr');
+
+    // rank
+    const tdRank = document.createElement('td');
+    tdRank.textContent = cd.rank;
+    tdRank.style.color = 'var(--text3)';
+    tdRank.style.fontWeight = '600';
+    tr.appendChild(tdRank);
+
+    // name + conflict warning
+    const tdName = document.createElement('td');
+    const nameDiv = document.createElement('div');
+    nameDiv.style.fontWeight = '500';
+    nameDiv.textContent = cd.name;
+    tdName.appendChild(nameDiv);
+    if (conflictInfo.has(cd.larkId)) {
+      const warn = document.createElement('div');
+      warn.className = 'conflict-warn';
+      warn.textContent = '⚠ Also top for ' + conflictInfo.get(cd.larkId).join(', ');
+      tdName.appendChild(warn);
+    }
+    tr.appendChild(tdName);
+
+    // category
+    const tdCat = document.createElement('td');
+    const pill = document.createElement('span');
+    pill.className = 'cat-pill ' + catClass(cd.category);
+    pill.textContent = cd.category ? cd.category.substring(0, 3).toUpperCase() : '?';
+    tdCat.appendChild(pill);
+    tr.appendChild(tdCat);
+
+    // DBS
+    const tdDbs = document.createElement('td');
+    tdDbs.innerHTML = cd.dbsOk
+      ? '<span class="check-ok">&#10003;</span>'
+      : '<span class="check-no">&#10007;</span>';
+    tr.appendChild(tdDbs);
+
+    // Subj
+    const tdSubj = document.createElement('td');
+    tdSubj.innerHTML = cd.subjOk
+      ? '<span class="check-ok">&#10003;</span>'
+      : '<span class="check-no">&#10007;</span>';
+    tr.appendChild(tdSubj);
+
+    // Eff Slots (with score bar)
+    const tdEff = document.createElement('td');
+    tdEff.className = 'score-cell';
+    tdEff.style.position = 'relative';
+    const bar = document.createElement('div');
+    bar.className = 'score-bar';
+    bar.style.width = (effRem(cd) / maxEff * 100).toFixed(1) + '%';
+    const val = document.createElement('span');
+    val.className = 'score-val';
+    val.textContent = effRem(cd);
+    tdEff.appendChild(bar);
+    tdEff.appendChild(val);
+    tr.appendChild(tdEff);
+
+    // Days @ Time
+    const tdDays = document.createElement('td');
+    tdDays.textContent = daysAt(cd);
+    tr.appendChild(tdDays);
+
+    // Reserve button
+    const tdBtn = document.createElement('td');
+    if (cl.assignmentStatus === 'Unassigned' && !state.loading.action) {
+      const btn = document.createElement('button');
+      btn.className = 'reserve-btn';
+      btn.textContent = 'Reserve';
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        onReserve(cl.classId, cd.larkId, cd.name);
+      });
+      tdBtn.appendChild(btn);
+    }
+    tr.appendChild(tdBtn);
+
+    tbody.appendChild(tr);
+  });
+
+  tbl.appendChild(tbody);
+  body.appendChild(tbl);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   FULL RENDER
+   ═══════════════════════════════════════════════════════════ */
+function render() {
+  renderSidebar();
+  renderBanner();
+  renderOverview();
+  renderCandidates();
+}
+
+/* ═══════════════════════════════════════════════════════════
+   ACTIONS
+   ═══════════════════════════════════════════════════════════ */
+
+// Load courses
+async function onLoadCourses() {
+  if (state.loading.courses) return;
+  state.loading.courses = true;
+  render();
+  try {
+    const res = await api_listCourses(50);
+    if (!res.ok) { toast('Failed to load courses: ' + (res.error || 'Unknown error')); return; }
+    state.courses = res.courses || [];
+  } catch (err) {
+    toast('Error: ' + err.message);
+  } finally {
+    state.loading.courses = false;
+    render();
   }
+}
 
-  // ── Select class ───────────────────────────────────────────────────────────
-  async function handleSelectClass(classId) {
-    if (classId === state.selectedClassId) return;
-    state.selectedClassId = classId;
-    state.candidates = [];
-    renderSidebar();
-    renderMain();
+// Select course
+async function onSelectCourse(courseId) {
+  if (state.loading.course) return;
+  if (state.activeCourseId === courseId) return;
 
+  const prevCourseId = state.activeCourseId;
+  state.activeCourseId = courseId;
+  state.activeCourse = null;
+  state.classes = [];
+  state.selectedClassId = null;
+  state.candidatesByClassId.clear();
+  state.loading.course = true;
+  render();
+
+  try {
+    const res = await api_loadCourse(courseId);
+    if (!res.ok) { toast('Failed to load course: ' + (res.error || 'Unknown')); return; }
+    state.activeCourse = res.course;
+    state.classes = (res.classes || []).map(cl => ({ ...cl })); // mutable copy
+  } catch (err) {
+    state.activeCourseId = prevCourseId;
+    toast('Error: ' + err.message);
+  } finally {
+    state.loading.course = false;
+    render();
+  }
+}
+
+// Select class (and load candidates if not cached)
+async function onSelectClass(classId) {
+  state.selectedClassId = classId;
+  render();
+
+  if (!state.candidatesByClassId.has(classId)) {
     state.loading.candidates = true;
-    renderMain();
+    render();
     try {
-      const result = await api_computeCandidates(classId);
-      state.candidates = result?.candidates || result || [];
-    } catch(e) {
-      toast(`Candidates failed: ${e.message}`);
-      state.candidates = [];
+      const res = await api_computeCandidates(classId);
+      if (!res.ok) { toast('Failed to load candidates: ' + (res.error || 'Unknown')); return; }
+      state.candidatesByClassId.set(classId, res.candidates || []);
+    } catch (err) {
+      toast('Error: ' + err.message);
     } finally {
       state.loading.candidates = false;
-      renderMain();
+      render();
     }
   }
+}
 
-  // ── Wire top-level events ──────────────────────────────────────────────────
-  document.getElementById('loadBtn').addEventListener('click', handleLoadCourse);
-  document.getElementById('courseInput').addEventListener('keydown', e => {
-    if (e.key === 'Enter') handleLoadCourse();
-  });
-
-  // ── Init ───────────────────────────────────────────────────────────────────
-  if (IS_MOCK) {
-    document.getElementById('courseInput').value = 'ABBA-ST1-Y11-16092025';
-    document.getElementById('topbarInfo').textContent = 'Preview mode';
+// Reserve
+async function onReserve(classId, teacherLarkId, teacherName) {
+  if (state.loading.action) return;
+  state.loading.action = true;
+  render();
+  try {
+    const res = await api_reserve(classId, teacherLarkId, teacherName);
+    if (!res.ok) { toast('Reserve failed: ' + (res.error || 'Unknown')); return; }
+    const cl = state.classes.find(c => c.classId === classId);
+    if (cl) {
+      cl.assignmentStatus = 'Reserved';
+      cl.assignedTeacherName = teacherName;
+      cl.assignedTeacherLarkId = teacherLarkId;
+    }
+    toast('Reserved — ' + teacherName);
+  } catch (err) {
+    toast('Error: ' + err.message);
+  } finally {
+    state.loading.action = false;
+    render();
   }
-  renderMain();
+}
 
-  // Expose bridge helper for Wix page proxy (same API as before)
-  window.bridge = { call: bridgeCall };
+// Confirm
+async function onConfirm(classId) {
+  if (state.loading.action) return;
+  state.loading.action = true;
+  render();
+  try {
+    const res = await api_confirm(classId);
+    if (!res.ok) { toast('Confirm failed: ' + (res.error || 'Unknown')); return; }
+    const cl = state.classes.find(c => c.classId === classId);
+    if (cl) cl.assignmentStatus = 'Confirmed';
+    toast('Confirmed — ' + (cl ? cl.assignedTeacherName : classId));
+  } catch (err) {
+    toast('Error: ' + err.message);
+  } finally {
+    state.loading.action = false;
+    render();
+  }
+}
+
+// Release
+async function onRelease(classId) {
+  if (state.loading.action) return;
+  state.loading.action = true;
+  render();
+  try {
+    const res = await api_release(classId);
+    if (!res.ok) { toast('Release failed: ' + (res.error || 'Unknown')); return; }
+    const cl = state.classes.find(c => c.classId === classId);
+    const prevName = cl ? cl.assignedTeacherName : classId;
+    if (cl) {
+      cl.assignmentStatus = 'Unassigned';
+      cl.assignedTeacherName = '';
+      cl.assignedTeacherLarkId = '';
+    }
+    toast('Released — ' + prevName + ' removed');
+  } catch (err) {
+    toast('Error: ' + err.message);
+  } finally {
+    state.loading.action = false;
+    render();
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   BOOTSTRAP
+   ═══════════════════════════════════════════════════════════ */
+document.getElementById('loadCoursesBtn').addEventListener('click', onLoadCourses);
+
+render(); // initial empty render
 
 })();
 </script>
-
 </body>
 </html>
